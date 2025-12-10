@@ -302,45 +302,76 @@ if __name__ == '__main__':
     num_experiment = 10
     reps = 1
     problem_size = 7
-    for file_name in ["gsdtsr","iofrol","paintcontrol"]:
-        df = pd.DataFrame()
-        df = pd.read_csv("../datasets/quantum_sota_datasets/"+file_name+".csv", dtype={"time": float, "rate": float})
-        length = len(df)
-        best_solution, best_energy = get_initial_fval(length)
-        best_itr = 0
-        start_impact = time.time()
-        impact_order = OrderByImpactNum(best_solution, df, best_energy)
-        end_impact = time.time()
-        impact_time = end_impact - start_impact
-        index_end = problem_size
-        index_begin = 0
-        solution = best_solution.copy()
-        count = 0 #iteration count
-        fval_list = []
-        times, frs = get_data(df)
-        head_log = ["itr_num","sub_problem","fval", "solution", "best_fval", "best_solution", "qaoa_time"]
-        head_result = ["itr_num", "exe_count", "fval", "solution", "best_fval", "best_solution", "qaoa_total", "impact_time","exe_total"]
-        head_solution = ["best_itr", "best_fval", "best_solution", "total_qaoa", "total_impact","total_exe", "execution_times","final_test_suite_costs","final_failure_rates"]
-        log_df = pd.DataFrame(columns=head_log)
-        result_df = pd.DataFrame(columns=head_result)
-        solution_df = pd.DataFrame(columns=head_solution)
-        total_qaoa = 0
-        total_exe = 0
-        total_impact = 0
-        execution_times = []
-        best_itr_times = []
-        best_itr_rates = []
+    df = pd.DataFrame()
+    df = pd.read_csv("../datasets/quantum_sota_datasets/"+file_name+".csv", dtype={"time": float, "rate": float})
+    length = len(df)
+    best_solution, best_energy = get_initial_fval(length)
+    best_itr = 0
+    start_impact = time.time()
+    impact_order = OrderByImpactNum(best_solution, df, best_energy)
+    end_impact = time.time()
+    impact_time = end_impact - start_impact
+    index_end = problem_size
+    index_begin = 0
+    solution = best_solution.copy()
+    count = 0 #iteration count
+    fval_list = []
+    times, frs = get_data(df)
+    head_log = ["itr_num","sub_problem","fval", "solution", "best_fval", "best_solution", "qaoa_time"]
+    head_result = ["itr_num", "exe_count", "fval", "solution", "best_fval", "best_solution", "qaoa_total", "impact_time","exe_total"]
+    head_solution = ["best_itr", "best_fval", "best_solution", "total_qaoa", "total_impact","total_exe", "execution_times","final_test_suite_costs","final_failure_rates"]
+    log_df = pd.DataFrame(columns=head_log)
+    result_df = pd.DataFrame(columns=head_result)
+    solution_df = pd.DataFrame(columns=head_solution)
+    total_qaoa = 0
+    total_exe = 0
+    total_impact = 0
+    execution_times = []
+    best_itr_times = []
+    best_itr_rates = []
 
-        itr_num = 0 #number of iterations
+    itr_num = 0 #number of iterations
 
 
-        while count < 10:
-            df_time = 0 # time for writing experiment results in dataframe, to delete in total running time
-            qaoa_time_total = 0 #total running time
-            exe_count = 0 #number of sub-problems in one iteration
-            itr_num += 1
-            total_start = time.time() #total running time start
-            if problem_size>0.15*len(df):
+    while count < 10:
+        df_time = 0 # time for writing experiment results in dataframe, to delete in total running time
+        qaoa_time_total = 0 #total running time
+        exe_count = 0 #number of sub-problems in one iteration
+        itr_num += 1
+        total_start = time.time() #total running time start
+        if problem_size>0.15*len(df):
+            exe_count += 1
+            case_list = impact_order[index_begin:index_end]
+            qubo, testcase = create_qubo(times, frs, 1 / 3, 1 / 3, 1 / 3, case_list, solution)
+            result, qaoa_time = run_alg(qubo, reps)
+
+            eigenstate = result.eigenstate
+            most_likely = max(eigenstate.items(), key=lambda x: x[1])[0]
+
+            # Convert to bitstring format
+            if isinstance(most_likely, int):
+                n = qubo.get_num_binary_vars()
+                bitstring = [int(b) for b in format(most_likely, f'0{n}b')[::-1]]
+            elif isinstance(most_likely, str):
+                bitstring = [int(b) for b in most_likely[::-1]]
+            else:
+                raise ValueError(f"Unsupported eigenstate key type: {type(most_likely)}")
+
+            start_df = time.time() #dataframe loading time start
+            qaoa_time_total += qaoa_time
+            origin_solution = []
+            for case in case_list:
+                origin_solution.append(solution[case])
+            for case_index in range(len(case_list)):
+                solution[case_list[case_index]] = bitstring[case_index]
+            result_fval = qubo.objective.evaluate(bitstring) # fitness values of all subproblems
+            fval_list.append(result_fval)
+            values_log = [itr_num, case_list, result_fval, solution, best_energy, best_solution, qaoa_time]
+            log_df.loc[len(log_df)] = values_log #getting log information of one sub-problem
+            end_df = time.time()
+            df_time += end_df - start_df
+        else:
+            while index_end <= 0.15 * len(df):
                 exe_count += 1
                 case_list = impact_order[index_begin:index_end]
                 qubo, testcase = create_qubo(times, frs, 1 / 3, 1 / 3, 1 / 3, case_list, solution)
@@ -358,84 +389,52 @@ if __name__ == '__main__':
                 else:
                     raise ValueError(f"Unsupported eigenstate key type: {type(most_likely)}")
 
-                start_df = time.time() #dataframe loading time start
-                qaoa_time_total += qaoa_time
+                start_df = time.time()
+                qaoa_time_total += qaoa_time # time of running qaoa
                 origin_solution = []
                 for case in case_list:
                     origin_solution.append(solution[case])
                 for case_index in range(len(case_list)):
                     solution[case_list[case_index]] = bitstring[case_index]
-                result_fval = qubo.objective.evaluate(bitstring) # fitness values of all subproblems
-                fval_list.append(result_fval)
+                result_fval = qubo.objective.evaluate(bitstring)
+                index_begin += problem_size
+                index_end += problem_size
                 values_log = [itr_num, case_list, result_fval, solution, best_energy, best_solution, qaoa_time]
-                log_df.loc[len(log_df)] = values_log #getting log information of one sub-problem
+                log_df.loc[len(log_df)] = values_log # get log information of one sub-problem
+                # print("case:" + str(case_list))
+                # print("origin_solution:" + str(origin_solution))
+                # print("fval:" + str(result.fval))
+                # print("value:" + str(result.x))
+                fval_list.append(result_fval) # fitness values of all subproblems
                 end_df = time.time()
                 df_time += end_df - start_df
-            else:
-                while index_end <= 0.15 * len(df):
-                    exe_count += 1
-                    case_list = impact_order[index_begin:index_end]
-                    qubo, testcase = create_qubo(times, frs, 1 / 3, 1 / 3, 1 / 3, case_list, solution)
-                    result, qaoa_time = run_alg(qubo, reps)
+        energy = result_fval # overall fitness value after running the last sub-problem in one iteration
+        if energy < best_energy:
+            best_itr = itr_num
+            best_solution = solution
+            best_energy = energy
+        total_end = time.time()
+        total_itr_time = total_end - total_start - df_time + impact_time # total execution time in one iteration
 
-                    eigenstate = result.eigenstate
-                    most_likely = max(eigenstate.items(), key=lambda x: x[1])[0]
+        #total time in solution file
+        execution_times.append(impact_time + qaoa_time_total)
+        total_qaoa += qaoa_time_total
+        total_exe += total_itr_time # total execution in all loops
+        total_impact += impact_time
 
-                    # Convert to bitstring format
-                    if isinstance(most_likely, int):
-                        n = qubo.get_num_binary_vars()
-                        bitstring = [int(b) for b in format(most_likely, f'0{n}b')[::-1]]
-                    elif isinstance(most_likely, str):
-                        bitstring = [int(b) for b in most_likely[::-1]]
-                    else:
-                        raise ValueError(f"Unsupported eigenstate key type: {type(most_likely)}")
+        values_result = [itr_num, exe_count, energy, solution, best_energy, best_solution, qaoa_time_total, impact_time, total_itr_time]
+        result_df.loc[len(result_df)] = values_result # results of one iteration
+        best_itr_times.append(df.loc[np.array(best_solution) == 1, "time"].sum())
+        best_itr_rates.append(df.loc[np.array(best_solution) == 1, "rate"].sum())
 
-                    start_df = time.time()
-                    qaoa_time_total += qaoa_time # time of running qaoa
-                    origin_solution = []
-                    for case in case_list:
-                        origin_solution.append(solution[case])
-                    for case_index in range(len(case_list)):
-                        solution[case_list[case_index]] = bitstring[case_index]
-                    result_fval = qubo.objective.evaluate(bitstring)
-                    index_begin += problem_size
-                    index_end += problem_size
-                    values_log = [itr_num, case_list, result_fval, solution, best_energy, best_solution, qaoa_time]
-                    log_df.loc[len(log_df)] = values_log # get log information of one sub-problem
-                    # print("case:" + str(case_list))
-                    # print("origin_solution:" + str(origin_solution))
-                    # print("fval:" + str(result.fval))
-                    # print("value:" + str(result.x))
-                    fval_list.append(result_fval) # fitness values of all subproblems
-                    end_df = time.time()
-                    df_time += end_df - start_df
-            energy = result_fval # overall fitness value after running the last sub-problem in one iteration
-            if energy < best_energy:
-                best_itr = itr_num
-                best_solution = solution
-                best_energy = energy
-            total_end = time.time()
-            total_itr_time = total_end - total_start - df_time + impact_time # total execution time in one iteration
-
-            #total time in solution file
-            execution_times.append(impact_time + qaoa_time_total)
-            total_qaoa += qaoa_time_total
-            total_exe += total_itr_time # total execution in all loops
-            total_impact += impact_time
-
-            values_result = [itr_num, exe_count, energy, solution, best_energy, best_solution, qaoa_time_total, impact_time, total_itr_time]
-            result_df.loc[len(result_df)] = values_result # results of one iteration
-            best_itr_times.append(df.loc[np.array(best_solution) == 1, "time"].sum())
-            best_itr_rates.append(df.loc[np.array(best_solution) == 1, "rate"].sum())
-
-            start_impact= time.time()
-            impact_order = OrderByImpactNum(solution, df, energy)
-            end_impact = time.time()
-            impact_time = end_impact - start_impact
-            print("best:" + str(best_energy))
-            count += 1
-            index_begin = 0
-            index_end = problem_size
+        start_impact= time.time()
+        impact_order = OrderByImpactNum(solution, df, energy)
+        end_impact = time.time()
+        impact_time = end_impact - start_impact
+        print("best:" + str(best_energy))
+        count += 1
+        index_begin = 0
+        index_end = problem_size
 
         values_solution = [best_itr, best_energy, best_solution, total_qaoa, total_impact, total_exe, execution_times, best_itr_times, best_itr_rates]
         solution_df.loc[len(solution_df)] = values_solution

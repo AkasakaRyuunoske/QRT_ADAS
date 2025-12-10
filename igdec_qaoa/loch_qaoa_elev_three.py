@@ -1,36 +1,24 @@
-from qiskit_aer import Aer
-from qiskit_algorithms.utils import algorithm_globals
-from qiskit_optimization.algorithms import MinimumEigenOptimizer
-from qiskit_optimization.problems import QuadraticProgram
-from qiskit.result import QuasiDistribution
+import os
+import random
+import time
 from typing import List, Union
-from qiskit.quantum_info import Pauli, Statevector
-from qiskit.result import QuasiDistribution
-import numpy as np
-from docplex.mp.model import Model
-from qiskit_algorithms import QAOA
-from qiskit_aer.primitives import Sampler as AerSampler
 
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+from docplex.mp.model import Model
+from qiskit.result import QuasiDistribution
+from qiskit_aer.primitives import Sampler as AerSampler
+from qiskit_algorithms import QAOA
+# from qiskit.algorithms.minimum_eigensolvers import QAOA, NumPyMinimumEigensolver
+from qiskit_algorithms.optimizers import COBYLA
+from qiskit_algorithms.utils import algorithm_globals
 from qiskit_optimization.algorithms import OptimizationResult
+from qiskit_optimization.applications import OptimizationApplication
 from qiskit_optimization.problems.quadratic_program import QuadraticProgram
 from qiskit_optimization.translators import from_docplex_mp
-from qiskit_optimization.applications import OptimizationApplication
-from qiskit_optimization.converters import QuadraticProgramToQubo
-import pandas as pd
-import random
-import sys
 
-# from qiskit.algorithms.minimum_eigensolvers import QAOA, NumPyMinimumEigensolver
-from qiskit_algorithms.optimizers import COBYLA, GradientDescent
-from qiskit.primitives import Sampler, BackendSampler
-import argparse
-import time
-import matplotlib.pyplot as plt
-import random
-import pandas as pd
-import os
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
+from SelectQAOA.igdec_qaoa.qrt_loader import load_qrt_df
 
 
 class TestCaseOptimizationThree(OptimizationApplication):
@@ -41,7 +29,8 @@ class TestCaseOptimizationThree(OptimizationApplication):
         https://en.wikipedia.org/wiki/Knapsack_problem
     """
 
-    def __init__(self, cost: List[float], pcount: List[float], dist: List[float], w1: float, w2: float, w3: float, sample: List[int],
+    def __init__(self, cost: List[float], pcount: List[float], dist: List[float], w1: float, w2: float, w3: float,
+                 sample: List[int],
                  solution: List[int]) -> None:
         """
         Args:
@@ -112,39 +101,50 @@ class TestCaseOptimizationThree(OptimizationApplication):
         x = self._result_to_x(result)
         return [i for i, value in enumerate(x) if value]
 
+
 def create_qubo(cost, pcount, dist, w1, w2, w3, sample, solution):
     testcase = TestCaseOptimizationThree(cost, pcount, dist, w1, w2, w3, sample, solution)
     prob = testcase.to_quadratic_program()
-    #probQubo = QuadraticProgramToQubo() #parameter: cofficient for constraint
-    #qubo = probQubo.convert(prob)
+    # probQubo = QuadraticProgramToQubo() #parameter: cofficient for constraint
+    # qubo = probQubo.convert(prob)
     return prob, testcase
 
+
 def get_data(data):
-    cost = data["cost"].values.tolist()
-    p_count = data["pcount"].values.tolist()
-    dist = data["dist"].values.tolist()
+    cost = data["test_cases_costs"].values.tolist()
+    p_count = data["collisions"].values.tolist()
+    dist = data["div_scores_norm"].values.tolist()
     return cost, p_count, dist
 
-def print_diet(sample,data):
+
+def print_diet(sample, data):
     total_cost = 0
     total_pcount = 0
     total_dist = 0
+
     cost_list = []
     pcount_list = []
     dist_list = []
+
     for t in range(len(sample)):
         if sample[t] == 1:
-            total_cost += data.iloc[t]['cost']
-            total_pcount += data.iloc[t]['pcount']
-            total_dist += data.iloc[t]['dist']
-            cost_list.append(data.iloc[t]['cost'])
-            pcount_list.append(data.iloc[t]['pcount'])
-            dist_list.append(data.iloc[t]['dist'])
-    fval = (1 / 3) * pow(sum(cost_list) / sum(data['cost']), 2) + (1 / 3) * pow((sum(pcount_list) - sum(data["pcount"])) / (sum(data["pcount"])), 2) + (1 / 3) * pow((sum(dist_list) - sum(data['dist'])) / (sum(data["dist"])), 2)
+            total_cost += data.iloc[t]['test_cases_costs']
+            total_pcount += data.iloc[t]['collisions']
+            total_dist += data.iloc[t]['div_scores_norm']
+
+            cost_list.append(data.iloc[t]['test_cases_costs'])
+            pcount_list.append(data.iloc[t]['collisions'])
+            dist_list.append(data.iloc[t]['div_scores_norm'])
+
+    fval = (1 / 3) * pow(sum(cost_list) / sum(data['test_cases_costs']), 2) + (1 / 3) * pow(
+        (sum(pcount_list) - sum(data["collisions"])) / (sum(data["collisions"])), 2) + (1 / 3) * pow(
+        (sum(dist_list) - sum(data['div_scores_norm'])) / (sum(data["div_scores_norm"])), 2)
     return fval
+
 
 def OrderByImpact(best_solution, df, best_energy):
     impact_values = {}
+
     for case in range(len(best_solution)):
         if best_solution[case] == 1:
             temp = best_solution.copy()
@@ -153,37 +153,51 @@ def OrderByImpact(best_solution, df, best_energy):
             impact_values[case] = print_diet(temp, df) - best_energy
         elif best_solution[case] == 0:
             temp = best_solution.copy()
-            temp[case]=1
+            temp[case] = 1
             impact_values[case] = print_diet(temp, df) - best_energy
+
     print(impact_values)
-    impact_values = sorted(impact_values.items(), key = lambda kv:(kv[1], kv[0]))
+
+    impact_values = sorted(impact_values.items(), key=lambda kv: (kv[1], kv[0]))
     impact_list = []
+
     for case in impact_values:
         impact_list.append(case[0])
+
     return impact_list
+
 
 def OrderByImpactNum(best_solution, df, best_energy):
     num = len(best_solution)
-    cost_array = list(df["cost"])
-    pcount_array = list(df["pcount"])
-    dist_array = list(df["dist"])
+    cost_array = list(df["test_cases_costs"])
+    pcount_array = list(df["collisions"])
+    dist_array = list(df["div_scores_norm"])
+
     cost_matrix = np.array(cost_array).reshape(-1, 1)
     pcount_matrix = np.array(pcount_array).reshape(-1, 1)
     dist_matrix = np.array(dist_array).reshape(-1, 1)
+
     matrix = np.array([best_solution] * len(best_solution))
+
     for i in range(num):
         if matrix[i][i] == 0:
             matrix[i][i] = 1
         elif matrix[i][i] == 1:
             matrix[i][i] = 0
+
     cost_sum = sum(cost_array)
     pcount_sum = sum(pcount_array)
     dist_sum = sum(dist_array)
+
     cost_obj = matrix.dot(cost_matrix)
     pcount_obj = matrix.dot(pcount_matrix) - pcount_sum
     dist_obj = matrix.dot(dist_matrix) - dist_sum
-    obj = (1/3)*(cost_obj/cost_sum)**2 + (1/3)*(pcount_obj/pcount_sum)**2 + (1/3)*(dist_obj/dist_sum)**2 - best_energy
+
+    obj = (1 / 3) * (cost_obj / cost_sum) ** 2 + (1 / 3) * (pcount_obj / pcount_sum) ** 2 + (1 / 3) * (
+            dist_obj / dist_sum) ** 2 - best_energy
+
     print(obj)
+
     # Get the sorted indices
     sorted_indices = np.argsort(obj, axis=0)
 
@@ -195,22 +209,29 @@ def OrderByImpactNum(best_solution, df, best_energy):
 
 def run_alg(qubo, reps):
     seed = random.randint(1, 9999999)
+
     algorithm_globals.random_seed = seed
     optimizer = COBYLA(500)
+
     ideal_sampler = AerSampler()
     ideal_sampler.options.shots = None
+
     # backend.set_options(device='GPU')
     qaoa = QAOA(sampler=ideal_sampler, optimizer=optimizer, reps=reps)
     operator, offset = qubo.to_ising()
+
     # Ising formulation
     print("offset: {}".format(offset))
     print("Ising Hamiltonian:")
     print(operator)
+
     begin = time.time()
     qaoa_result = qaoa.compute_minimum_eigenvalue(operator)
     end = time.time()
-    exe_time = end-begin
+    exe_time = end - begin
+
     return qaoa_result, exe_time
+
 
 def print_result(result, testcase):
     selection = result.x
@@ -223,9 +244,11 @@ def print_result(result, testcase):
         if isinstance(eigenstate, QuasiDistribution)
         else {k: np.abs(v) ** 2 for k, v in eigenstate.items()}
     )
+
     print("\n----------------- Full result ---------------------")
     print("selection\tvalue\t\tprobability")
     print("---------------------------------------------------")
+
     probabilities = sorted(probabilities.items(), key=lambda x: x[1], reverse=True)
 
     for k, v in probabilities:
@@ -233,10 +256,13 @@ def print_result(result, testcase):
         value = testcase.to_quadratic_program().objective.evaluate(x)
         print("%10s\t%.4f\t\t%.4f" % (x, value, v))
 
+
 def plot(fval_list, reps, file_name, problem_size):
     plt.plot(fval_list)
     plt.ylabel('fval')
-    plt.savefig("../results/igdec_qaoa/ideal/qaoa_"+str(reps)+"/" + file_name + "_three" + "/size_" + str(problem_size) + "/" + str(num_experiment)+"/fval_trend.png")
+    plt.savefig("../results/igdec_qaoa/ideal/qaoa_" + str(reps) + "/" + file_name + "_three" + "/size_" + str(
+        problem_size) + "/" + str(num_experiment) + "/fval_trend.png")
+
 
 def scatter_merge(solution, data):
     # time = []
@@ -248,12 +274,16 @@ def scatter_merge(solution, data):
     # plt.scatter(data["time"], data["rate"], c='red')
     # plt.scatter(time, rate)
     # plt.show()
+
     test_all = []
     test_sel = []
+
     for t in range(len(solution)):
         test_all.append([data.iloc[t]['cost'], data.iloc[t]['pcount'], data.iloc[t]['dist']])
+
         if solution[t] == 1.0:
             test_sel.append([data.iloc[t]['cost'], data.iloc[t]['pcount'], data.iloc[t]['dist']])
+
     print(test_sel)
 
     fig = plt.figure()
@@ -264,8 +294,6 @@ def scatter_merge(solution, data):
 
     # Plot selected data
     ax.scatter(*zip(*test_sel), color='g', label='Selected')
-
-
 
     # Label axes
     ax.set_xlabel('cost')
@@ -281,56 +309,76 @@ def scatter_merge(solution, data):
 
 def get_initial_fval(length):
     initial_values = [random.choice([0, 1]) for _ in range(length)]
-    fval = print_diet(initial_values, df)
-    best_solution=initial_values
-    best_energy=fval
-    return best_solution, best_energy
 
+    fval = print_diet(initial_values, df)
+    best_solution = initial_values
+    best_energy = fval
+
+    return best_solution, best_energy
 
 
 if __name__ == '__main__':
     num_experiment = 10
     reps = 1
     problem_size = 7
+
     file_name = "elevator"
+
     df = pd.DataFrame()
-    df = pd.read_csv("../datasets/quantum_sota_datasets/"+file_name+".csv", dtype={"cost": float, "pcount": int, "dist": int})
+    # df = pd.read_csv("../datasets/quantum_sota_datasets/" + file_name + ".csv",
+    #                  dtype={"cost": float, "pcount": int, "dist": int})
+    df = load_qrt_df()
+
     length = len(df)
     best_solution, best_energy = get_initial_fval(length)
-    best_itr = 0
+
     start_impact = time.time()
     impact_order = OrderByImpactNum(best_solution, df, best_energy)
     end_impact = time.time()
     impact_time = end_impact - start_impact
     index_end = problem_size
+
     index_begin = 0
+    count = 0  # iteration count
+    best_itr = 0
+
     solution = best_solution.copy()
-    count = 0 #iteration count
+
     fval_list = []
+
     cost, pcount, dist = get_data(df)
-    head_log = ["itr_num","sub_problem","fval", "solution", "best_fval", "best_solution", "qaoa_time"]
-    head_result = ["itr_num", "exe_count", "fval", "solution", "best_fval", "best_solution", "qaoa_total", "impact_time","exe_total"]
-    head_solution = ["best_itr", "best_fval", "best_solution", "total_qaoa", "total_impact","total_exe","execution_times", "final_test_suite_costs", "final_suite_pcounts", "final_suite_dists"]
+
+    head_log = ["itr_num", "sub_problem", "fval", "solution", "best_fval", "best_solution", "qaoa_time"]
+
+    head_result = ["itr_num", "exe_count", "fval", "solution", "best_fval", "best_solution", "qaoa_total",
+                   "impact_time", "exe_total"]
+
+    head_solution = ["best_itr", "best_fval", "best_solution", "total_qaoa", "total_impact", "total_exe",
+                     "execution_times", "final_test_suite_costs", "final_suite_pcounts", "final_suite_dists"]
+
     log_df = pd.DataFrame(columns=head_log)
     result_df = pd.DataFrame(columns=head_result)
     solution_df = pd.DataFrame(columns=head_solution)
+
     total_qaoa = 0
     total_exe = 0
     total_impact = 0
+
     execution_times = []
     best_itr_times = []
     best_itr_pcounts = []
     best_itr_dists = []
 
-    itr_num = 0 # number of iterations
+    itr_num = 0  # number of iterations
 
     while count < 10:
-        df_time = 0 # time for writing experiment results in dataframe, to delete in total running time
-        qaoa_time_total = 0 #total running time
-        exe_count = 0 #number of sub-problems in one iteration
+        df_time = 0  # time for writing experiment results in dataframe, to delete in total running time
+        qaoa_time_total = 0  # total running time
+        exe_count = 0  # number of sub-problems in one iteration
         itr_num += 1
-        total_start = time.time() #total running time start
-        if problem_size>0.15*len(df):
+        total_start = time.time()  # total running time start
+
+        if problem_size > 0.15 * len(df):
             exe_count += 1
             case_list = impact_order[index_begin:index_end]
             qubo, testcase = create_qubo(cost, pcount, dist, 1 / 3, 1 / 3, 1 / 3, case_list, solution)
@@ -348,17 +396,20 @@ if __name__ == '__main__':
             else:
                 raise ValueError(f"Unsupported eigenstate key type: {type(most_likely)}")
 
-            start_df = time.time() #dataframe loading time start
+            start_df = time.time()  # dataframe loading time start
             qaoa_time_total += qaoa_time
             origin_solution = []
+
             for case in case_list:
                 origin_solution.append(solution[case])
+
             for case_index in range(len(case_list)):
                 solution[case_list[case_index]] = bitstring[case_index]
+
             result_fval = qubo.objective.evaluate(bitstring)
-            fval_list.append(result_fval) # fitness values of all subproblems
+            fval_list.append(result_fval)  # fitness values of all subproblems
             values_log = [itr_num, case_list, result_fval, solution, best_energy, best_solution, qaoa_time]
-            log_df.loc[len(log_df)] = values_log #getting log information of one sub-problem
+            log_df.loc[len(log_df)] = values_log  # getting log information of one sub-problem
             end_df = time.time()
             df_time += end_df - start_df
         else:
@@ -381,67 +432,91 @@ if __name__ == '__main__':
                     raise ValueError(f"Unsupported eigenstate key type: {type(most_likely)}")
 
                 start_df = time.time()
-                qaoa_time_total += qaoa_time # time of running qaoa
+                qaoa_time_total += qaoa_time  # time of running qaoa
                 origin_solution = []
+
                 for case in case_list:
                     origin_solution.append(solution[case])
+
                 for case_index in range(len(case_list)):
                     solution[case_list[case_index]] = bitstring[case_index]
+
                 result_fval = qubo.objective.evaluate(bitstring)
                 index_begin += problem_size
                 index_end += problem_size
+
                 values_log = [itr_num, case_list, result_fval, solution, best_energy, best_solution, qaoa_time]
-                log_df.loc[len(log_df)] = values_log # get log information of one sub-problem
+
+                log_df.loc[len(log_df)] = values_log  # get log information of one sub-problem
+
                 # print("case:" + str(case_list))
                 # print("origin_solution:" + str(origin_solution))
                 # print("fval:" + str(result.fval))
                 # print("value:" + str(result.x))
-                fval_list.append(result_fval) # fitness values of all subproblems
+
+                fval_list.append(result_fval)  # fitness values of all subproblems
                 end_df = time.time()
                 df_time += end_df - start_df
-        energy = result_fval # overall fitness value after running the last sub-problem in one iteration
+
+        energy = result_fval  # overall fitness value after running the last sub-problem in one iteration
+
         if energy < best_energy:
             best_itr = itr_num
             best_solution = solution
             best_energy = energy
-        total_end = time.time()
-        total_itr_time = total_end - total_start - df_time + impact_time # total execution time in one iteration
 
-        #total time in solution file
+        total_end = time.time()
+        total_itr_time = total_end - total_start - df_time + impact_time  # total execution time in one iteration
+
+        # total time in solution file
         execution_times.append(impact_time + qaoa_time_total)
+
         total_qaoa += qaoa_time_total
-        total_exe += total_itr_time # total execution in all loops
+        total_exe += total_itr_time  # total execution in all loops
         total_impact += impact_time
 
-        values_result = [itr_num, exe_count, energy, solution, best_energy, best_solution, qaoa_time_total, impact_time, total_itr_time]
-        result_df.loc[len(result_df)] = values_result # results of one iteration
-        best_itr_times.append(df.loc[np.array(best_solution) == 1, "cost"].sum())
-        best_itr_pcounts.append(df.loc[np.array(best_solution) == 1, "pcount"].sum())
-        best_itr_dists.append(df.loc[np.array(best_solution) == 1, "dist"].sum())
+        values_result = [itr_num, exe_count, energy, solution, best_energy, best_solution, qaoa_time_total, impact_time,
+                         total_itr_time]
+        result_df.loc[len(result_df)] = values_result  # results of one iteration
 
-        start_impact= time.time()
+        best_itr_times.append(df.loc[np.array(best_solution) == 1, "test_cases_costs"].sum())
+        best_itr_pcounts.append(df.loc[np.array(best_solution) == 1, "collisions"].sum())
+        best_itr_dists.append(df.loc[np.array(best_solution) == 1, "div_scores_norm"].sum())
+
+        start_impact = time.time()
         impact_order = OrderByImpactNum(solution, df, energy)
         end_impact = time.time()
         impact_time = end_impact - start_impact
+
         print("best:" + str(best_energy))
+
         count += 1
         index_begin = 0
         index_end = problem_size
 
-    values_solution = [best_itr, best_energy, best_solution, total_qaoa, total_impact, total_exe, execution_times, best_itr_times, best_itr_pcounts, best_itr_dists]
+    values_solution = [best_itr, best_energy, best_solution, total_qaoa, total_impact, total_exe, execution_times,
+                       best_itr_times, best_itr_pcounts, best_itr_dists]
     solution_df.loc[len(solution_df)] = values_solution
 
-    if not os.path.exists("../results/igdec_qaoa/ideal/qaoa_"+str(reps)+"/" + file_name + "_three" + "/size_" + str(problem_size) + "/" + str(num_experiment)):
-        os.makedirs("../results/igdec_qaoa/ideal/qaoa_"+str(reps)+"/" + file_name + "_three"+ "/size_" + str(problem_size) + "/" + str(num_experiment))
-    log_df.to_csv("../results/igdec_qaoa/ideal/qaoa_"+str(reps)+"/" + file_name + "_three" + "/size_" + str(problem_size) + "/" + str(num_experiment)+"/log.csv")
+    if not os.path.exists("../results/igdec_qaoa/ideal/qaoa_" + str(reps) + "/" + file_name + "_three" + "/size_" + str(
+            problem_size) + "/" + str(num_experiment)):
+        os.makedirs("../results/igdec_qaoa/ideal/qaoa_" + str(reps) + "/" + file_name + "_three" + "/size_" + str(
+            problem_size) + "/" + str(num_experiment))
+    log_df.to_csv("../results/igdec_qaoa/ideal/qaoa_" + str(reps) + "/" + file_name + "_three" + "/size_" + str(
+        problem_size) + "/" + str(num_experiment) + "/log.csv")
 
-    if not os.path.exists("../results/igdec_qaoa/ideal/qaoa_"+str(reps)+"/" + file_name + "_three" + "/size_" + str(problem_size) + "/" + str(num_experiment)):
-        os.makedirs("../results/igdec_qaoa/ideal/qaoa_"+str(reps)+"/" + file_name + "_three" + "/size_" + str(problem_size) + "/" + str(num_experiment))
-    result_df.to_csv("../results/igdec_qaoa/ideal/qaoa_"+str(reps)+"/" + file_name + "_three" + "/size_" + str(problem_size) + "/" + str(num_experiment)+"/itr_results.csv")
+    if not os.path.exists("../results/igdec_qaoa/ideal/qaoa_" + str(reps) + "/" + file_name + "_three" + "/size_" + str(
+            problem_size) + "/" + str(num_experiment)):
+        os.makedirs("../results/igdec_qaoa/ideal/qaoa_" + str(reps) + "/" + file_name + "_three" + "/size_" + str(
+            problem_size) + "/" + str(num_experiment))
+    result_df.to_csv("../results/igdec_qaoa/ideal/qaoa_" + str(reps) + "/" + file_name + "_three" + "/size_" + str(
+        problem_size) + "/" + str(num_experiment) + "/itr_results.csv")
 
-    if not os.path.exists("../results/igdec_qaoa/ideal/qaoa_"+str(reps)+"/" + file_name + "_three" + "/size_" + str(problem_size) + "/" + str(num_experiment)):
-        os.makedirs("../results/igdec_qaoa/ideal/qaoa_"+str(reps)+"/" + file_name + "_three" + "/size_" + str(problem_size) + "/" + str(num_experiment))
-    solution_df.to_csv("../results/igdec_qaoa/ideal/qaoa_"+str(reps)+"/" + file_name + "_three" + "/size_" + str(problem_size) + "/" + str(num_experiment)+"/solution.csv")
+    if not os.path.exists("../results/igdec_qaoa/ideal/qaoa_" + str(reps) + "/" + file_name + "_three" + "/size_" + str(
+            problem_size) + "/" + str(num_experiment)):
+        os.makedirs("../results/igdec_qaoa/ideal/qaoa_" + str(reps) + "/" + file_name + "_three" + "/size_" + str(
+            problem_size) + "/" + str(num_experiment))
+    solution_df.to_csv("../results/igdec_qaoa/ideal/qaoa_" + str(reps) + "/" + file_name + "_three" + "/size_" + str(
+        problem_size) + "/" + str(num_experiment) + "/solution.csv")
 
     plot(fval_list, reps, file_name, problem_size)
-
