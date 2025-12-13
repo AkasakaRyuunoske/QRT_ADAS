@@ -1,15 +1,12 @@
 % Program configuration
-programs = {'flex', 'grep', 'gzip', 'sed'};
-program_config.flex = struct('N', 567, 'M', 400, 'coverage_norm', 4357, 'max_iterations', 334);
-program_config.grep = struct('N', 806, 'M', 200, 'coverage_norm', 3680, 'max_iterations', 334);
-program_config.gzip = struct('N', 214, 'M', 300, 'coverage_norm', 2034, 'max_iterations', 167);
-program_config.sed  = struct('N', 360, 'M', 300, 'coverage_norm', 5311, 'max_iterations', 334);
+programs = {'qrt'};
+program_config.qrt = struct('N', 497, 'M', 350, 'max_iterations', 334);
 
 %for each program
 %costs is an array of size N
 %coverage is an array of size N
 %revealed_failures is an array of size N (of binary values)
-function total_fitness = computeFitness(population, costs, coverage, revealed_failures, norm_factor)
+function total_fitness = computeFitness(population, costs, coverage, revealed_failures)
     [m, n] = size(population);
     fitness_values = zeros(m, 1);
 
@@ -17,14 +14,7 @@ function total_fitness = computeFitness(population, costs, coverage, revealed_fa
         solution = population(i, :);
         total_cost = sum(solution .* costs)/sum(costs);
 
-        selected_lines = [];
-        for j = 1:length(coverage)
-            if solution(j) == 1
-                selected_lines = [selected_lines, coverage{j}];
-            end
-        end
-        unique_covered_lines = unique(selected_lines);
-        total_coverage = -length(unique_covered_lines) / norm_factor;
+        total_coverage = -sum(solution .* coverage)/sum(coverage);
 
         total_failures = -sum(solution .* revealed_failures) / sum(revealed_failures ~= 0);
         fitness_values(i) = total_cost + total_coverage + total_failures;
@@ -34,16 +24,10 @@ function total_fitness = computeFitness(population, costs, coverage, revealed_fa
 end
 
 
-function f = fitnessFunction(x, costs, coverage, revealed_failures, norm_factor)
+function f = fitnessFunction(x, costs, coverage, revealed_failures)
     total_cost = sum(x .* costs)/sum(costs);
-    selected_lines = [];
-    for i = 1:length(coverage)
-        if x(i) == 1
-            selected_lines = [selected_lines, coverage{i}];
-        end
-    end
-    unique_covered_lines = unique(selected_lines);
-    total_coverage = -length(unique_covered_lines) / norm_factor;
+
+    total_coverage = -sum(x .* coverage)/sum(coverage);
 
     nonzero_failures = revealed_failures(revealed_failures ~= 0);
     total_failures = -sum(x .* revealed_failures)/length(nonzero_failures);
@@ -57,7 +41,6 @@ for prog = programs
     cfg = program_config.(program);
     N = cfg.N;
     M = cfg.M;
-    norm_factor = cfg.coverage_norm;
     max_iterations = cfg.max_iterations;
 
     fprintf('\n=== Running for %s ===\n', program);
@@ -67,23 +50,13 @@ for prog = programs
     %get costs
     costs = str2double(strsplit(fileread([program '_costs.txt']), ','));
     
-    
-    % Read the content of the text file
-    fileID = fopen([program '_coverage.txt'], 'r');
-    rawData = textscan(fileID, '%s', 'Delimiter', '\n');
-    fclose(fileID);
-    % Initialize the coverage cell array
-    coverage = cell(length(rawData{1}), 1);
-    for i = 1:length(rawData{1})
-        coverage{i} = str2double(strsplit(rawData{1}{i}, ','));
-    end
-    
+    coverage = str2double(strsplit(fileread([program '_div_scores.txt']), ','));
     
     %get revealed_failures
-    revealed_failures = str2double(strsplit(fileread([program '_revealed_failures.txt']), ','));
+    revealed_failures = str2double(strsplit(fileread([program '_collisions.txt']), ','));
     
     % Define the fitness function handle
-    fitnessFcn = @(x) fitnessFunction(x, costs, coverage, revealed_failures, norm_factor);
+    fitnessFcn = @(x) fitnessFunction(x, costs, coverage, revealed_failures);
     
     % Array to store Pareto fronts
     pareto_fronts = cell(1, 10);
@@ -406,38 +379,38 @@ for prog = programs
             
             % Calculate U_t2 * (S_t2 + S) * transposed(V_t2 + V_orth)
             P_orth = U_t2 * S_sum * V_sum_transpose;
-    
+
             % Initialize matrix for P_final
             P_binary = zeros(size(P_orth));
-            
+
             % Apply the condition: P_final(i,j) is 0 if P_orth(i,j) < 0.5, 1 otherwise
             P_binary(P_orth >= 0.5) = 1;
-    
+
             % Calculate fitness values for each individual in the population
             population = last_generations{1, 2};
             %total_fitness = computeFitness(population, costs, coverage, revealed_failures);
-    
+
             fitness_values = zeros(size(population, 1), 1);
             for z = 1:size(population, 1)
-                fitness_values(z) = computeFitness(population(z, :), costs, coverage, revealed_failures,norm_factor);
+                fitness_values(z) = computeFitness(population(z, :), costs, coverage, revealed_failures);
             end
-        
+
             % Find indices of the worst individuals (rows)
             [~, sorted_indices] = sort(fitness_values);
             worst_indices = sorted_indices(1:size(P_binary, 1)); % Select worst k individuals
-        
+
             % Replace worst individuals with corresponding individuals from P_binary
             updated_population = population;
             updated_population(worst_indices, :) = P_binary;
-    
+
             starting_population = updated_population;
             last_generations = {};
-    
+
         end
-    
+
         execution_times(rep) = sum(routine_execution_times);
     end
-    
+
     % Show each element
     disp('Execution times:');
     for i = 1:length(execution_times)
