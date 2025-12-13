@@ -128,15 +128,12 @@ def compute_div_scores(scenarios):
     return div_scores
 
 
-
-
 def load_qrt_df():
     scenarios, tot_test_cases = load_scenarios_from_folder("./../simulation_output")
     collisions = extract_collisions(scenarios)
     div_scores = compute_div_scores(scenarios)
 
     test_cases_costs = [1] * tot_test_cases
-
 
     df = pd.DataFrame({
         "collisions": collisions,
@@ -152,5 +149,23 @@ def load_qrt_df():
     return df
 
 
+def create_divga_inputs():
+    df = load_qrt_df()
+
+    collisions_list = df["collisions"].tolist()
+    test_cases_costs_list = df["test_cases_costs"].tolist()
+    div_scores_norm_list = df["div_scores_norm"].tolist()
+
+    with open("qrt_collisions.txt", "w") as f:
+        f.write(",".join(map(str, collisions_list)))
+
+    with open("qrt_costs.txt", "w") as f:
+        f.write(",".join(map(str, test_cases_costs_list)))
+
+    with open("qrt_div_scores.txt", "w") as f:
+        f.write(",".join(map(str, div_scores_norm_list)))
+
+
 if __name__ == "__main__":
     print(load_qrt_df())
+    create_divga_inputs()
