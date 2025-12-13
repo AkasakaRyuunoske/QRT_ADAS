@@ -322,7 +322,7 @@ if __name__ == '__main__':
     reps = 1
     problem_size = 7
 
-    file_name = "elevator"
+    file_name = "qrt"
 
     df = pd.DataFrame()
     # df = pd.read_csv("../datasets/quantum_sota_datasets/" + file_name + ".csv",
@@ -354,7 +354,7 @@ if __name__ == '__main__':
                    "impact_time", "exe_total"]
 
     head_solution = ["best_itr", "best_fval", "best_solution", "total_qaoa", "total_impact", "total_exe",
-                     "execution_times", "final_test_suite_costs", "final_suite_pcounts", "final_suite_dists"]
+                     "execution_times", "final_suite_costs", "final_suite_collisions", "final_suite_div_scores"]
 
     log_df = pd.DataFrame(columns=head_log)
     result_df = pd.DataFrame(columns=head_result)
@@ -371,7 +371,7 @@ if __name__ == '__main__':
 
     itr_num = 0  # number of iterations
 
-    while count < 10:
+    while count < num_experiment:
         df_time = 0  # time for writing experiment results in dataframe, to delete in total running time
         qaoa_time_total = 0  # total running time
         exe_count = 0  # number of sub-problems in one iteration
@@ -408,7 +408,8 @@ if __name__ == '__main__':
 
             result_fval = qubo.objective.evaluate(bitstring)
             fval_list.append(result_fval)  # fitness values of all subproblems
-            values_log = [itr_num, case_list, result_fval, solution, best_energy, best_solution, qaoa_time]
+            # build_pareto_front(bitstring)
+            values_log = [itr_num, case_list, result_fval, solution, best_energy, best_solution, qaoa_time] # aggiungere il campo qui
             log_df.loc[len(log_df)] = values_log  # getting log information of one sub-problem
             end_df = time.time()
             df_time += end_df - start_df
@@ -475,6 +476,7 @@ if __name__ == '__main__':
         total_exe += total_itr_time  # total execution in all loops
         total_impact += impact_time
 
+        print(f"solution ==> {solution}")
         values_result = [itr_num, exe_count, energy, solution, best_energy, best_solution, qaoa_time_total, impact_time,
                          total_itr_time]
         result_df.loc[len(result_df)] = values_result  # results of one iteration

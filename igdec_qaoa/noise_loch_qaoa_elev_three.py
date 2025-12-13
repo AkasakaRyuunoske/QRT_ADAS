@@ -376,7 +376,7 @@ if __name__ == '__main__':
     head_result = ["itr_num", "exe_count", "fval", "solution", "best_fval", "best_solution", "qaoa_total",
                    "impact_time", "exe_total"]
     head_solution = ["best_itr", "best_fval", "best_solution", "total_qaoa", "total_impact", "total_exe",
-                     "execution_times", "final_test_suite_costs", "final_suite_pcounts", "final_suite_dists"]
+                     "execution_times", "final_suite_costs", "final_suite_collisions", "final_suite_div_scores"]
 
     log_df = pd.DataFrame(columns=head_log)
     result_df = pd.DataFrame(columns=head_result)
@@ -393,7 +393,7 @@ if __name__ == '__main__':
 
     itr_num = 0  # number of iterations
 
-    while count < 10:
+    while count < num_experiment:
         df_time = 0  # time for writing experiment results in dataframe, to delete in total running time
         qaoa_time_total = 0  # total running time
         exe_count = 0  # number of sub-problems in one iteration
