@@ -1,8 +1,10 @@
 # from qiskit_aer.primitives import Estimator as AerEstimator
 # from qiskit.providers.fake_provider import
 # from qiskit import Aer
+import json
 import os
 import random
+import statistics
 import time
 from typing import List, Union
 
@@ -344,13 +346,44 @@ def get_initial_fval(length):
 
     return best_solution, best_energy
 
+def build_pareto_front(selected_tests):
+    """This method builds the pareto front additionally from a sub test suite solution"""
+    pareto_front = []
+    max_fault_coverage = 0
+    max_stmt_coverage = 0
+
+    for index in range(1, len(selected_tests) + 1):
+        # exract the first index selected tests
+        candidate_solution = selected_tests[:index]
+        candidate_solution_fault_coverage = 0
+        candidate_solution_stmt_coverage = 0
+        for selected_test in candidate_solution:
+            print(f"selected_test => {selected_test}")
+            candidate_solution_fault_coverage += selected_test["collisions"]
+            candidate_solution_stmt_coverage += selected_test["div_scores_norm"]
+
+        # if the actual pareto front dominates the candidate solution, get to the next candidate
+        if max_fault_coverage >= candidate_solution_fault_coverage and max_stmt_coverage >= candidate_solution_stmt_coverage:
+            continue
+
+        # eventually update the pareto front information
+        if candidate_solution_stmt_coverage > max_stmt_coverage:
+            max_stmt_coverage = candidate_solution_stmt_coverage
+
+        if candidate_solution_fault_coverage > max_fault_coverage:
+            max_fault_coverage = candidate_solution_fault_coverage
+        # add the candidate solution to the pareto front
+        pareto_front.append(candidate_solution)
+
+    return pareto_front
+
 
 if __name__ == '__main__':
     num_experiment = 10
     reps = 1
     problem_size = 7
-    file_name = "elevator"
-    df = pd.DataFrame()
+    file_name = "qrt"
+
     df = load_qrt_df()
 
     # df = pd.read_csv("../datasets/quantum_sota_datasets/"+file_name+".csv", dtype={"cost": float, "pcount": int, "dist": int})
@@ -391,9 +424,15 @@ if __name__ == '__main__':
     best_itr_pcounts = []
     best_itr_dists = []
 
+    selected_tests = []
+    json_data = {}
+    pareto_fronts_building_times = []
+    qpu_run_times = []
+    file_path = file_name + "_pareto_fronts_noice_loch_qaoa_elev_three.json"
+
     itr_num = 0  # number of iterations
 
-    while count < num_experiment:
+    while count < 2:
         df_time = 0  # time for writing experiment results in dataframe, to delete in total running time
         qaoa_time_total = 0  # total running time
         exe_count = 0  # number of sub-problems in one iteration
@@ -490,6 +529,26 @@ if __name__ == '__main__':
         total_exe += total_itr_time  # total execution in all loops
         total_impact += impact_time
 
+        print(f"solution ==> {solution}")
+        selected_test = {
+            "collisions": int(df.loc[np.array(best_solution) == 1, "collisions"].sum()),
+            "div_scores_norm": float(df.loc[np.array(best_solution) == 1, "div_scores_norm"].sum()),
+            "solution": solution
+        }
+        selected_tests.append(selected_test)
+
+        print(f"Selected_tests ==> {selected_tests}")
+
+        start = time.time()
+        pareto_front = build_pareto_front(selected_tests)
+        end = time.time()
+
+        print(f"Pareto front ==> {pareto_front}")
+
+        json_data["pareto_front_" + str(itr_num)] = pareto_front
+        pareto_front_building_time = (end - start) * 1000
+        pareto_fronts_building_times.append(pareto_front_building_time)
+
         values_result = [itr_num, exe_count, energy, solution, best_energy, best_solution, qaoa_time_total, impact_time,
                          total_itr_time]
         result_df.loc[len(result_df)] = values_result  # results of one iteration
@@ -509,6 +568,17 @@ if __name__ == '__main__':
     values_solution = [best_itr, best_energy, best_solution, total_qaoa, total_impact, total_exe, execution_times,
                        best_itr_times, best_itr_pcounts, best_itr_dists]
     solution_df.loc[len(solution_df)] = values_solution
+
+    # mean_qpu_run_time = statistics.mean(qpu_run_times)
+    mean_pareto_fronts_building_time = statistics.mean(pareto_fronts_building_times)
+    # json_data["mean_qpu_run_time(ms)"] = mean_qpu_run_time
+    # json_data["stdev_qpu_run_time(ms)"] = statistics.stdev(qpu_run_times)
+    # json_data["all_qpu_run_times(ms)"] = qpu_run_times
+    json_data["mean_pareto_fronts_building_time(ms)"] = mean_pareto_fronts_building_time
+
+    print(f"json_data ==> {json_data}")
+    with open(file_path, "w") as file:
+        json.dump(json_data, file)
 
     if not os.path.exists("../results/igdec_qaoa/noise/qaoa_" + str(reps) + "/" + file_name + "_one" + "/size_" + str(
             problem_size) + "/" + str(num_experiment)):
