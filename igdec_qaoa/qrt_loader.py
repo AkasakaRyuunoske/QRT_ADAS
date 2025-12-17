@@ -146,6 +146,8 @@ def load_qrt_df():
     df["div_scores_norm"] = df["div_scores_norm"].round(10)
     del df["div_scores"]
 
+    # df.to_csv("qrt_scenarios.csv")
+
     return df
 
 

@@ -158,7 +158,7 @@ def OrderByImpact(best_solution, df, best_energy):
             temp[case] = 1
             impact_values[case] = print_diet(temp, df) - best_energy
 
-    print(impact_values)
+    # print(impact_values)
 
     impact_values = sorted(impact_values.items(), key=lambda kv: (kv[1], kv[0]))
     impact_list = []
@@ -198,7 +198,7 @@ def OrderByImpactNum(best_solution, df, best_energy):
     obj = (1 / 3) * (cost_obj / cost_sum) ** 2 + (1 / 3) * (pcount_obj / pcount_sum) ** 2 + (1 / 3) * (
             dist_obj / dist_sum) ** 2 - best_energy
 
-    print(obj)
+    # print(obj)
 
     # Get the sorted indices
     sorted_indices = np.argsort(obj, axis=0)
@@ -223,9 +223,9 @@ def run_alg(qubo, reps):
     operator, offset = qubo.to_ising()
 
     # Ising formulation
-    print("offset: {}".format(offset))
-    print("Ising Hamiltonian:")
-    print(operator)
+    # print("offset: {}".format(offset))
+    # print("Ising Hamiltonian:")
+    # print(operator)
 
     begin = time.time()
     qaoa_result = qaoa.compute_minimum_eigenvalue(operator)
@@ -286,7 +286,7 @@ def scatter_merge(solution, data):
         if solution[t] == 1.0:
             test_sel.append([data.iloc[t]['cost'], data.iloc[t]['pcount'], data.iloc[t]['dist']])
 
-    print(test_sel)
+    # print(test_sel)
 
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
@@ -324,6 +324,7 @@ def build_pareto_front(selected_tests):
     pareto_front = []
     max_fault_coverage = 0
     max_stmt_coverage = 0
+    global base_df
 
     for index in range(1, len(selected_tests) + 1):
         # exract the first index selected tests
@@ -331,9 +332,8 @@ def build_pareto_front(selected_tests):
         candidate_solution_fault_coverage = 0
         candidate_solution_stmt_coverage = 0
         for selected_test in candidate_solution:
-            print(f"selected_test => {selected_test}")
-            candidate_solution_fault_coverage += selected_test["collisions"]
-            candidate_solution_stmt_coverage += selected_test["div_scores_norm"]
+            candidate_solution_fault_coverage += base_df.loc[selected_test]["collisions"]
+            candidate_solution_stmt_coverage += base_df.loc[selected_test]["div_scores_norm"]
 
         # if the actual pareto front dominates the candidate solution, get to the next candidate
         if max_fault_coverage >= candidate_solution_fault_coverage and max_stmt_coverage >= candidate_solution_stmt_coverage:
@@ -351,6 +351,16 @@ def build_pareto_front(selected_tests):
     return pareto_front
 
 
+def map_index_to_scenario(selected_test_index):
+    mapped_indexes = []
+
+    for index, selected_test in enumerate(selected_test_index):
+        if selected_test == 1:
+            mapped_indexes.append(index)
+
+    return mapped_indexes
+
+
 if __name__ == '__main__':
     num_experiment = 10
     reps = 1
@@ -362,6 +372,7 @@ if __name__ == '__main__':
     # df = pd.read_csv("../datasets/quantum_sota_datasets/" + file_name + ".csv",
     #                  dtype={"cost": float, "pcount": int, "dist": int})
     df = load_qrt_df()
+    base_df = df.copy()
 
     length = len(df)
     best_solution, best_energy = get_initial_fval(length)
@@ -412,7 +423,7 @@ if __name__ == '__main__':
 
     itr_num = 0  # number of iterations
 
-    while count < 2:
+    while count < num_experiment:
         df_time = 0  # time for writing experiment results in dataframe, to delete in total running time
         qaoa_time_total = 0  # total running time
         exe_count = 0  # number of sub-problems in one iteration
@@ -520,18 +531,13 @@ if __name__ == '__main__':
         total_exe += total_itr_time  # total execution in all loops
         total_impact += impact_time
 
-        print(f"solution ==> {solution}")
-        selected_test = {
-            "collisions": int(df.loc[np.array(best_solution) == 1, "collisions"].sum()),
-            "div_scores_norm": float(df.loc[np.array(best_solution) == 1, "div_scores_norm"].sum()),
-            "solution": solution
-        }
-        selected_tests.append(selected_test)
+        print(f"Selected_tests ==> {solution}")
 
-        print(f"Selected_tests ==> {selected_tests}")
+        mapped_solution = map_index_to_scenario(solution)
+        print(f"mapped solution => {mapped_solution}")
 
         start = time.time()
-        pareto_front = build_pareto_front(selected_tests)
+        pareto_front = build_pareto_front(mapped_solution)
         end = time.time()
 
         print(f"Pareto front ==> {pareto_front}")
