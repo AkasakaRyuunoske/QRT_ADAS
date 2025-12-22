@@ -168,34 +168,8 @@ def create_divga_inputs():
         f.write(",".join(map(str, div_scores_norm_list)))
 
 
-def generate_pareto_front_for_greedy(selected_tests):
-    pareto_front = []
-    max_fault_coverage = 0
-    max_stmt_coverage = 0
-
-    for index in range(1, len(selected_tests) + 1):
-        # exract the first index selected tests
-        candidate_solution = selected_tests[:index]
-        candidate_solution_fault_coverage = 0
-        candidate_solution_stmt_coverage = 0
-        for selected_test in candidate_solution:
-            candidate_solution_fault_coverage += collisions[selected_test]
-            candidate_solution_stmt_coverage += div_scores[selected_test]
-        # if the actual pareto front dominates the candidate solution, get to the next candidate
-        if max_fault_coverage >= candidate_solution_fault_coverage and max_stmt_coverage >= candidate_solution_stmt_coverage:
-            continue
-        # eventually update the pareto front information
-        if candidate_solution_stmt_coverage > max_stmt_coverage:
-            max_stmt_coverage = candidate_solution_stmt_coverage
-
-        if candidate_solution_fault_coverage > max_fault_coverage:
-            max_fault_coverage = candidate_solution_fault_coverage
-        # add the candidate solution to the pareto front
-        pareto_front.append(candidate_solution)
-
-    return pareto_front
-
-
 if __name__ == "__main__":
-    print(load_qrt_df())
+    # print(load_qrt_df())
+    scenarios_df = load_qrt_df()
+    scenarios_df.to_csv("normalized_scenarios.csv")
     # create_divga_inputs()

@@ -439,7 +439,7 @@ if __name__ == '__main__':
     json_data = {}
     pareto_fronts_building_times = []
     qpu_run_times = []
-    file_path = file_name + "_pareto_fronts_noice_loch_qaoa_elev_three.json"
+    file_path = "./../results/igdec_qaoa/noise_" + file_name + "_pareto_fronts_loch_qaoa_elev_three.json"
 
     itr_num = 0  # number of iterations
 
@@ -546,7 +546,7 @@ if __name__ == '__main__':
         pareto_front = build_pareto_front(mapped_solution)
         end = time.time()
 
-        json_data["pareto_front_" + str(itr_num)] = pareto_front
+        json_data["pareto_front_" + str(count)] = pareto_front
         pareto_front_building_time = (end - start) * 1000
         pareto_fronts_building_times.append(pareto_front_building_time)
 
