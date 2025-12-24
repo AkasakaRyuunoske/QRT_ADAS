@@ -21,8 +21,8 @@ config_map <- list(
   noise_5 = "depolarizing_sim/05"
 )
 
-programs <- c("flex", "grep", "gzip", "sed")
-methods <- c("qtcs" = "selectqa", "div_ga" = "divga", "qaoa" = "qaoa", "add_greedy" = "add_greedy")
+programs <- c("qrt_adas")
+methods <- c("igdec" = "igdec", "div_ga" = "divga", "qaoa_tcs" = "qaoa_tcs", "add_greedy" = "add_greedy")
 
 configs <- list()
 
@@ -66,8 +66,6 @@ for (config_name in names(configs)) {
   
   # Iterate through each measurement group in the configuration
   for (group_name in names(configs[[config_name]])) {
-    cat("\n--- Measurement Group:", group_name, "---\n")
-    
     # Extract the data for the current group
     current_data <- configs[[config_name]][[group_name]]
     
