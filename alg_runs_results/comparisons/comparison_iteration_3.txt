@@ -1,0 +1,33 @@
+Iteration: 3
+Portions ==> [2623, 0, 0, 1295]
+
+=== Shapiro–Wilk Normality Test ===
+IGDEC: W=0.75664, p=0.00430
+DIV-GA: W=0.64969, p=0.00022
+QAOA: W=0.64969, p=0.00022
+Greedy: W=1.00000, p=1.00000
+Almeno una distribuzione NON è normale.
+=================qrt_adas=================
+IGDEC/DIVGA/ADD GREEDY
+=================depolarizing_sim/01=================
+IGDEC Non Dominated Values
+[168, 253, 293, 275, 276, 262, 289, 254, 294, 259]
+IGDEC Non Dominated Mean
+262.3
+IGDEC Non Dominated StDev
+36.61830143521133
+DIV-GA Non Dominated Values
+[0, 0, 0, 0, 1, 0, 1, 0, 0, 2]
+DIV-GA Non Dominated Mean
+0.4
+DIV-GA Non Dominated StDev
+0.699205898780101
+SelectQAOA Non Dominated Values (depolarizing_sim/01)
+[0, 0, 0, 0, 1, 0, 1, 0, 0, 2]
+SelectQAOA Non Dominated Mean (depolarizing_sim/01)
+0.4
+SelectQAOA Non Dominated StDev (depolarizing_sim/01)
+0.699205898780101
+Greedy Non Dominated Values
+0
+{'qrt_adas': {'statevector_sim': {'igdec': ([313, 249, 277, 269, 268, 269, 268, 268, 268, 268], 271.7, 16.09727375123571), 'divga': ([0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 0, 0.0), 'qaoa_tcs': ([0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 0, 0.0), 'add_greedy': (2, 2, 0)}, 'aer_sim': {'igdec': ([168, 253, 293, 275, 276, 262, 289, 254, 294, 259], 262.3, 36.61830143521133), 'divga': ([0, 0, 0, 0, 1, 0, 1, 0, 0, 2], 0.4, 0.699205898780101), 'qaoa_tcs': ([0, 0, 0, 0, 1, 0, 1, 0, 0, 2], 0.4, 0.699205898780101), 'add_greedy': (0, 0, 0)}, 'fake_brisbane': {'igdec': ([168, 253, 293, 275, 276, 262, 289, 254, 294, 259], 262.3, 36.61830143521133), 'divga': ([0, 0, 0, 0, 1, 0, 1, 0, 0, 2], 0.4, 0.699205898780101), 'qaoa_tcs': ([0, 0, 0, 0, 1, 0, 1, 0, 0, 2], 0.4, 0.699205898780101), 'add_greedy': (0, 0, 0)}, 'depolarizing_sim/01': {'igdec': ([168, 253, 293, 275, 276, 262, 289, 254, 294, 259], 262.3, 36.61830143521133), 'divga': ([0, 0, 0, 0, 1, 0, 1, 0, 0, 2], 0.4, 0.699205898780101), 'qaoa_tcs': ([0, 0, 0, 0, 1, 0, 1, 0, 0, 2], 0.4, 0.699205898780101), 'add_greedy': (0, 0, 0)}, 'depolarizing_sim/02': {}, 'depolarizing_sim/05': {}}}
