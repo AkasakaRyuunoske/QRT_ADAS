@@ -129,7 +129,7 @@ def compute_div_scores(scenarios):
 
 
 def load_qrt_df():
-    scenarios, tot_test_cases = load_scenarios_from_folder("./../simulation_output")
+    scenarios, tot_test_cases = load_scenarios_from_folder("../scenarios")
     collisions = extract_collisions(scenarios)
     div_scores = compute_div_scores(scenarios)
 
