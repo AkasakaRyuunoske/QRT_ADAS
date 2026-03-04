@@ -31,7 +31,7 @@ def load_scenarios_from_folder(folder_path):
     scenarios = []
     print(f"Caricamento scenari dalla cartella: {folder_path} (e sottocartelle)")
     if not os.path.exists(folder_path):
-        print(f"⚠️ Attenzione: La cartella '{folder_path}' non esiste.")
+        print(f"Attenzione: La cartella '{folder_path}' non esiste.")
         return []
 
     # Utilizza os.walk per attraversare l'albero delle directory
@@ -49,15 +49,15 @@ def load_scenarios_from_folder(folder_path):
                                 scenario_event_data['original_filename'] = filename
                                 scenarios.append(scenario_event_data)
                             else:
-                                print(f"⚠️ Attenzione: Il file {filename} è una lista vuota. Saltato.")
+                                print(f"Attenzione: Il file {filename} è una lista vuota. Saltato.")
                         else:
                             print(
-                                f"❌ Errore: Il file {filename} non contiene una lista valida di eventi o ha un formato inatteso. Saltato.")
+                                f"Errore: Il file {filename} non contiene una lista valida di eventi o ha un formato inatteso. Saltato.")
 
                 except json.JSONDecodeError as e:
-                    print(f"❌ Errore di decodifica JSON nel file {filename}: {e}")
+                    print(f"Errore di decodifica JSON nel file {filename}: {e}")
                 except Exception as e:
-                    print(f"❌ Errore generico durante la lettura/elaborazione del file {filename}: {e}")
+                    print(f"Errore generico durante la lettura/elaborazione del file {filename}: {e}")
     print(f"Caricati {len(scenarios)} scenari.")
     return scenarios, len(scenarios)
 
@@ -129,7 +129,7 @@ def compute_div_scores(scenarios):
 
 
 def load_qrt_df():
-    scenarios, tot_test_cases = load_scenarios_from_folder("../scenarios")
+    scenarios, tot_test_cases = load_scenarios_from_folder("./scenarios")
     collisions = extract_collisions(scenarios)
     div_scores = compute_div_scores(scenarios)
 
@@ -158,18 +158,18 @@ def create_divga_inputs():
     test_cases_costs_list = df["test_cases_costs"].tolist()
     div_scores_norm_list = df["div_scores_norm"].tolist()
 
-    with open("qrt_collisions.txt", "w") as f:
+    with open("divga/qrt_collisions.txt", "w") as f:
         f.write(",".join(map(str, collisions_list)))
 
-    with open("qrt_costs.txt", "w") as f:
+    with open("divga/qrt_costs.txt", "w") as f:
         f.write(",".join(map(str, test_cases_costs_list)))
 
-    with open("qrt_div_scores.txt", "w") as f:
+    with open("divga/qrt_div_scores.txt", "w") as f:
         f.write(",".join(map(str, div_scores_norm_list)))
 
 
 if __name__ == "__main__":
     # print(load_qrt_df())
-    scenarios_df = load_qrt_df()
-    scenarios_df.to_csv("normalized_scenarios.csv")
-    # create_divga_inputs()
+    # scenarios_df = load_qrt_df()
+    # scenarios_df.to_csv("normalized_scenarios.csv")
+    create_divga_inputs()
