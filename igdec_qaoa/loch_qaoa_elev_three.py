@@ -12,7 +12,6 @@ from docplex.mp.model import Model
 from qiskit.result import QuasiDistribution
 from qiskit_aer.primitives import Sampler as AerSampler
 from qiskit_algorithms import QAOA
-# from qiskit.algorithms.minimum_eigensolvers import QAOA, NumPyMinimumEigensolver
 from qiskit_algorithms.optimizers import COBYLA
 from qiskit_algorithms.utils import algorithm_globals
 from qiskit_optimization.algorithms import OptimizationResult
@@ -20,7 +19,7 @@ from qiskit_optimization.applications import OptimizationApplication
 from qiskit_optimization.problems.quadratic_program import QuadraticProgram
 from qiskit_optimization.translators import from_docplex_mp
 
-from SelectQAOA.igdec_qaoa.qrt_loader import load_qrt_df
+from SelectQAOA.qrt_utility import load_qrt_df
 
 
 class TestCaseOptimizationThree(OptimizationApplication):
@@ -267,16 +266,6 @@ def plot(fval_list, reps, file_name, problem_size):
 
 
 def scatter_merge(solution, data):
-    # time = []
-    # rate = []
-    # for t in range(len(solution)):
-    #     if solution[t] == 1.0:
-    #         time.append(data.iloc[t]['time'])
-    #         rate.append(data.iloc[t]['rate'])
-    # plt.scatter(data["time"], data["rate"], c='red')
-    # plt.scatter(time, rate)
-    # plt.show()
-
     test_all = []
     test_sel = []
 
@@ -286,7 +275,6 @@ def scatter_merge(solution, data):
         if solution[t] == 1.0:
             test_sel.append([data.iloc[t]['cost'], data.iloc[t]['pcount'], data.iloc[t]['dist']])
 
-    # print(test_sel)
 
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
@@ -320,31 +308,34 @@ def get_initial_fval(length):
 
 
 def build_pareto_front(selected_tests):
-    """This method builds the pareto front additionally from a sub test suite solution"""
+    """
+    This method builds the pareto front additionally from a sub test suite solution
+    """
     pareto_front = []
-    max_fault_coverage = 0
-    max_stmt_coverage = 0
-    global base_df
+    max_collision = 0
+    max_div_score = 0
 
-    for index in range(1, len(selected_tests) + 1):
-        # exract the first index selected tests
+    for index in range(1,len(selected_tests)+1):
+        # extract the first index selected tests
         candidate_solution = selected_tests[:index]
-        candidate_solution_fault_coverage = 0
-        candidate_solution_stmt_coverage = 0
-        for selected_test in candidate_solution:
-            candidate_solution_fault_coverage += base_df.loc[selected_test]["collisions"]
-            candidate_solution_stmt_coverage += base_df.loc[selected_test]["div_scores_norm"]
+        candidate_solution_collision = 0
+        candidate_solution_div_score = 0
 
-        # if the actual pareto front dominates the candidate solution, get to the next candidate
-        if max_fault_coverage >= candidate_solution_fault_coverage and max_stmt_coverage >= candidate_solution_stmt_coverage:
+        for selected_test in candidate_solution:
+            candidate_solution_collision += base_df.loc[selected_test]["collisions"]
+            candidate_solution_div_score += base_df.loc[selected_test]["div_scores_norm"]
+
+        # if the current pareto front dominates the candidate solution, get to the next candidate
+        if max_collision >= candidate_solution_collision and max_div_score >= candidate_solution_div_score:
             continue
 
         # eventually update the pareto front information
-        if candidate_solution_stmt_coverage > max_stmt_coverage:
-            max_stmt_coverage = candidate_solution_stmt_coverage
+        if candidate_solution_div_score > max_div_score:
+            max_div_score = candidate_solution_div_score
 
-        if candidate_solution_fault_coverage > max_fault_coverage:
-            max_fault_coverage = candidate_solution_fault_coverage
+        if candidate_solution_collision > max_collision:
+            max_collision = candidate_solution_collision
+
         # add the candidate solution to the pareto front
         pareto_front.append(candidate_solution)
 
@@ -368,9 +359,6 @@ if __name__ == '__main__':
 
     file_name = "qrt"
 
-    # df = pd.DataFrame()
-    # df = pd.read_csv("../datasets/quantum_sota_datasets/" + file_name + ".csv",
-    #                  dtype={"cost": float, "pcount": int, "dist": int})
     df = load_qrt_df()
     base_df = df.copy()
 
@@ -461,8 +449,6 @@ if __name__ == '__main__':
             result_fval = qubo.objective.evaluate(bitstring)
             fval_list.append(result_fval)  # fitness values of all subproblems
 
-            # build_pareto_front(bitstring)
-
             values_log = [itr_num, case_list, result_fval, solution, best_energy, best_solution,
                           qaoa_time]  # aggiungere il campo qui
             log_df.loc[len(log_df)] = values_log  # getting log information of one sub-problem
@@ -504,11 +490,6 @@ if __name__ == '__main__':
                 values_log = [itr_num, case_list, result_fval, solution, best_energy, best_solution, qaoa_time]
 
                 log_df.loc[len(log_df)] = values_log  # get log information of one sub-problem
-
-                # print("case:" + str(case_list))
-                # print("origin_solution:" + str(origin_solution))
-                # print("fval:" + str(result.fval))
-                # print("value:" + str(result.x))
 
                 fval_list.append(result_fval)  # fitness values of all subproblems
                 end_df = time.time()
@@ -576,7 +557,6 @@ if __name__ == '__main__':
     # json_data["all_qpu_run_times(ms)"] = qpu_run_times
     json_data["mean_pareto_fronts_building_time(ms)"] = mean_pareto_fronts_building_time
 
-    print(f"json_data ==> {json_data}")
     with open(file_path, "w") as file:
         json.dump(json_data, file)
 

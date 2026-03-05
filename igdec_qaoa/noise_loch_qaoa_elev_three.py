@@ -11,6 +11,7 @@ from typing import List, Union
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from SelectQAOA.igdec_qaoa.qrt_loader import load_qrt_df
 from docplex.mp.model import Model
 from qiskit.result import QuasiDistribution
 from qiskit_aer.noise import NoiseModel
@@ -24,19 +25,10 @@ from qiskit_optimization.applications import OptimizationApplication
 from qiskit_optimization.problems.quadratic_program import QuadraticProgram
 from qiskit_optimization.translators import from_docplex_mp
 
-from SelectQAOA.igdec_qaoa.qrt_loader import load_qrt_df
-
 noise_model = NoiseModel.from_backend(FakeBrisbane())
 fake_sampler = AerSampler(backend_options={'noise_model': noise_model})
 fake_sampler.options.shots = 2048
 
-
-# backend = Aer.get_backend('aer_simulator')
-# # backend.set_options(device='GPU')
-# quantum_instance = QuantumInstance(backend)
-# backend.set_options(
-#     max_parallel_threads = int(os.environ["SLURM_JOB_CPUS_PER_NODE"]),
-# )
 
 class TestCaseOptimizationThree(OptimizationApplication):
     """Optimization application for the "knapsack problem" [1].
@@ -97,22 +89,6 @@ class TestCaseOptimizationThree(OptimizationApplication):
         obj_cost = pow(obj_cost / cost_sum, 2)
         obj_pcount = pow((obj_pcount - pcount_sum) / pcount_sum, 2)
         obj_dist = pow((obj_dist - dist_sum) / dist_sum, 2)
-        #         print("time:",obj_time)
-        #         print("rate:",obj_rate)
-        #         print("num:",obj_num)
-
-        #         obj_time = sum(self._times[i] * x[i] for i in x)
-        #         obj_time = pow(obj_time/time_sum, 2)
-
-        #         if rate_sum == 0:
-        #             obj_fr = 0
-        #             obj_fr = 0
-        #         else:
-        #             obj_fr = sum(self._frs[i] * x[i] for i in x)
-        #             obj_fr = pow((obj_fr-rate_sum)/rate_sum, 2)
-
-        #         obj_num = pow(sum(x[i] for i in x)/len(self._times), 2)
-
         obj = self._w1 * obj_cost + self._w2 * obj_pcount + self._w3 * obj_dist
 
         mdl.minimize(obj)
@@ -137,8 +113,7 @@ class TestCaseOptimizationThree(OptimizationApplication):
 def create_qubo(cost, pcount, dist, w1, w2, w3, sample, solution):
     testcase = TestCaseOptimizationThree(cost, pcount, dist, w1, w2, w3, sample, solution)
     prob = testcase.to_quadratic_program()
-    # probQubo = QuadraticProgramToQubo() #parameter: cofficient for constraint
-    # qubo = probQubo.convert(prob)
+
     return prob, testcase
 
 
@@ -167,17 +142,10 @@ def print_diet(sample, data):
             pcount_list.append(data.iloc[t]['collisions'])
             dist_list.append(data.iloc[t]['div_scores_norm'])
 
-            # print(t[1:]+'. ',end=' ')
-            # print('time: '+str(foods[t]['time']), end=', ')
-            # print('rate: '+str(foods[t]['rate']), end='\n')
-
     fval = (1 / 3) * pow(sum(cost_list) / sum(data['test_cases_costs']), 2) + (1 / 3) * pow(
         (sum(pcount_list) - sum(data["collisions"])) / (sum(data["collisions"])), 2) + (1 / 3) * pow(
         (sum(dist_list) - sum(data['div_scores_norm'])) / (sum(data["div_scores_norm"])), 2)
-    # print("Total time: " + str(total_time))
-    # print("Total rate: " + str(total_rate))
-    #     print("Fval value:" + str(fval))
-    #     print("Number: "+str(count))
+
     return fval
 
 
@@ -226,14 +194,13 @@ def OrderByImpactNum(best_solution, df, best_energy):
     cost_sum = sum(cost_array)
     pcount_sum = sum(pcount_array)
     dist_sum = sum(dist_array)
-    # time_sum_con = np.full((len(best_solution), 1), time_sum)
-    # rate_sum_con = np.full((len(best_solution), 1), rate_sum)
+
     cost_obj = matrix.dot(cost_matrix)
 
     pcount_obj = matrix.dot(pcount_matrix) - pcount_sum
     dist_obj = matrix.dot(dist_matrix) - dist_sum
     obj = (1 / 3) * (cost_obj / cost_sum) ** 2 + (1 / 3) * (pcount_obj / pcount_sum) ** 2 + (1 / 3) * (
-                dist_obj / dist_sum) ** 2 - best_energy
+            dist_obj / dist_sum) ** 2 - best_energy
 
     print(obj)
     # Get the sorted indices
@@ -296,15 +263,6 @@ def plot(fval_list, reps, file_name, problem_size):
 
 
 def scatter_merge(solution, data):
-    # time = []
-    # rate = []
-    # for t in range(len(solution)):
-    #     if solution[t] == 1.0:
-    #         time.append(data.iloc[t]['time'])
-    #         rate.append(data.iloc[t]['rate'])
-    # plt.scatter(data["time"], data["rate"], c='red')
-    # plt.scatter(time, rate)
-    # plt.show()
     test_all = []
     test_sel = []
 
@@ -346,32 +304,36 @@ def get_initial_fval(length):
 
     return best_solution, best_energy
 
+
 def build_pareto_front(selected_tests):
-    """This method builds the pareto front additionally from a sub test suite solution"""
+    """
+    This method builds the pareto front additionally from a sub test suite solution
+    """
     pareto_front = []
-    max_fault_coverage = 0
-    max_stmt_coverage = 0
-    global base_df
+    max_collision = 0
+    max_div_score = 0
 
     for index in range(1, len(selected_tests) + 1):
         # exract the first index selected tests
         candidate_solution = selected_tests[:index]
-        candidate_solution_fault_coverage = 0
-        candidate_solution_stmt_coverage = 0
-        for selected_test in candidate_solution:
-            candidate_solution_fault_coverage += base_df.loc[selected_test]["collisions"]
-            candidate_solution_stmt_coverage += base_df.loc[selected_test]["div_scores_norm"]
+        candidate_solution_collision = 0
+        candidate_solution_div_score = 0
 
-        # if the actual pareto front dominates the candidate solution, get to the next candidate
-        if max_fault_coverage >= candidate_solution_fault_coverage and max_stmt_coverage >= candidate_solution_stmt_coverage:
+        for selected_test in candidate_solution:
+            candidate_solution_collision += base_df.loc[selected_test]["collisions"]
+            candidate_solution_div_score += base_df.loc[selected_test]["div_scores_norm"]
+
+        # if the current pareto front dominates the candidate solution, get to the next candidate
+        if max_collision >= candidate_solution_collision and max_div_score >= candidate_solution_div_score:
             continue
 
         # eventually update the pareto front information
-        if candidate_solution_stmt_coverage > max_stmt_coverage:
-            max_stmt_coverage = candidate_solution_stmt_coverage
+        if candidate_solution_div_score > max_div_score:
+            max_div_score = candidate_solution_div_score
 
-        if candidate_solution_fault_coverage > max_fault_coverage:
-            max_fault_coverage = candidate_solution_fault_coverage
+        if candidate_solution_collision > max_collision:
+            max_collision = candidate_solution_collision
+
         # add the candidate solution to the pareto front
         pareto_front.append(candidate_solution)
 
@@ -396,8 +358,6 @@ if __name__ == '__main__':
 
     df = load_qrt_df()
     base_df = df.copy()
-
-    # df = pd.read_csv("../datasets/quantum_sota_datasets/"+file_name+".csv", dtype={"cost": float, "pcount": int, "dist": int})
 
     length = len(df)
     best_solution, best_energy = get_initial_fval(length)
@@ -518,10 +478,7 @@ if __name__ == '__main__':
                 index_end += problem_size
                 values_log = [itr_num, case_list, result_fval, solution, best_energy, best_solution, qaoa_time]
                 log_df.loc[len(log_df)] = values_log  # get log information of one sub-problem
-                # print("case:" + str(case_list))
-                # print("origin_solution:" + str(origin_solution))
-                # print("fval:" + str(result.fval))
-                # print("value:" + str(result.x))
+
                 fval_list.append(result_fval)  # fitness values of all subproblems
                 end_df = time.time()
                 df_time += end_df - start_df
@@ -577,7 +534,6 @@ if __name__ == '__main__':
     # json_data["all_qpu_run_times(ms)"] = qpu_run_times
     json_data["mean_pareto_fronts_building_time(ms)"] = mean_pareto_fronts_building_time
 
-    print(f"json_data ==> {json_data}")
     with open(file_path, "w") as file:
         json.dump(json_data, file)
 
@@ -601,5 +557,3 @@ if __name__ == '__main__':
             problem_size) + "/" + str(num_experiment))
     solution_df.to_csv("../results/igdec_qaoa/noise/qaoa_" + str(reps) + "/" + file_name + "_one" + "/size_" + str(
         problem_size) + "/" + str(num_experiment) + "/solution.csv")
-
-    # plot(fval_list, reps, file_name, problem_size)
